@@ -1,8 +1,6 @@
 #include "Global.h"
 #include <cstring>
 
-//222
-
 void allocWorkspace(program_configuration& cfg, WorkVectors& extra, double*& x, double*& f) {
     int NodesX = 2 * cfg.Nx + 1;
     int NodesY = 2 * cfg.Ny + 1;
