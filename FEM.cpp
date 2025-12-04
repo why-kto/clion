@@ -9,16 +9,43 @@ double get_f(double x, double y, int test_id) {
 
     if (test_id == 1 || test_id == 2) return -2.0;
     if (test_id == 3) return -4.0;
+    if (test_id == 4) {
+        double pi = 3.1415926535;
+        return (2.0 * pi * pi + 1.0) * sin(pi * x) * sin(pi * y);
+    }
 
-    return 1.0;
+    return 0.0;
+}
+
+void fill_lambda(double* GlobalLambda, program_configuration& cfg) {
+    int Nx = cfg.Nx;
+    int Ny = cfg.Ny;
+    int NodesX = 2 * Nx + 1;
+    int NodesY = 2 * Ny + 1;
+    int TotalNodes = NodesX * NodesY;
+    int TotalElements = Nx * Ny;
+
+    for (int j = 0; j < NodesY; j++) {
+        for (int i = 0; i < NodesX; i++) {
+            int idx = j * NodesX + i;
+
+            if (i < NodesX / 2) {
+                GlobalLambda[idx] = 1.0;
+            } else {
+                GlobalLambda[idx] = 10.0;
+            }
+        }
+    }
 }
 
 double get_exact_u(double x, double y, int test_id) {
     if (test_id == 1) return x * x;
     if (test_id == 2) return y * y;
-
-    // ДОБАВИЛИ ЭТО:
     if (test_id == 3) return x * x + y * y;
+    if (test_id == 4) {
+        double pi = 3.1415926535;
+        return sin(pi * x) * sin(pi * y);
+    }
 
     return 0.0;
 }
@@ -84,23 +111,6 @@ void element_fill(Element *Elements_all, program_configuration& cfg) {
 
 Element& get_element_nodes(Element *&Elements_all, program_configuration& cfg, int ex, int ey) {
     return Elements_all[ey * cfg.Nx + ex];
-}
-
-void fill_lambda(double* GlobalLambda, program_configuration& cfg) {
-    int NodesX = 2 * cfg.Nx + 1;
-    int NodesY = 2 * cfg.Ny + 1;
-
-    for (int j = 0; j < NodesY; j++) {
-        for (int i = 0; i < NodesX; i++) {
-            int idx = j * NodesX + i;
-
-            if (i < NodesX / 2) {
-                GlobalLambda[idx] = 1.0;
-            } else {
-                GlobalLambda[idx] = 10.0;
-            }
-        }
-    }
 }
 
 void build_local_matrix(double **&mtrx, double* lambda_values, double* gamma_values, program_configuration& cfg) {

@@ -1,21 +1,19 @@
+#include <iomanip>
+
 #include "Global.h"
 #include "IO.h"
 #include "FEM.h"
 
 int main() {
-    // ------------------------------------------
-    // 1. НАСТРОЙКА ПАРАМЕТРОВ
-    // ------------------------------------------
 
     program_configuration cfg;
     boundary_conditions_parameters params;
 
     load_program_config(cfg, "kuslau.txt");
-    load_boundary_conditions(params, "boundary_conditions.txt");
 
     if (cfg.TestId == 1) {
         cout << ">>> MODE: TEST 1 (u = x^2) <<<" << endl;
-        // Настраиваем границы:
+
         // Слева (1) и Справа (3) - Дирихле (значения x^2)
         // Сверху (2) и Снизу (4) - Нейман 0 (изоляция)
         params.left = 1;   params.left_value = 0.0;  // x=0 -> u=0
@@ -43,6 +41,15 @@ int main() {
         params.up = 1;     params.top_value = 0.0;
         params.down = 1;   params.bottom_value = 0.0;
     }
+    else if (cfg.TestId == 4) {
+        cout << ">>> MODE: TEST 4 (Convergence Study) <<<" << endl;
+        // Все границы - Дирихле u=0
+        params.left = 1;   params.left_value = 0.0;
+        params.right = 1;  params.right_value = 0.0;
+        params.up = 1;     params.top_value = 0.0;
+        params.down = 1;   params.bottom_value = 0.0;
+    }
+    else load_boundary_conditions(params, "boundary_conditions.txt");
 
     int Nx = cfg.Nx;
     int Ny = cfg.Ny;
@@ -81,17 +88,26 @@ int main() {
 
 
     double* GlobalLambda = new double[TotalNodes];
-    fill_lambda(GlobalLambda, cfg);
+
+    // if (cfg.TestId > 0) {
+    //     // Для тестов Лямбда всегда 1.0
+    //     for(int i=0; i<TotalNodes; i++) GlobalLambda[i] = 1.0;
+    // } else {
+    //     // Для обычного режима - твоя функция с распределением (1.0 и 10.0)
+    //     fill_lambda(GlobalLambda, cfg);
+    // }
+    for(int i=0; i<TotalNodes; i++) GlobalLambda[i] = 1.0;
 
     double* GlobalGamma = new double[TotalNodes];
 
-    if (cfg.TestId > 0) {
-        // Для тестов Лямбда всегда 1.0
-        for(int i=0; i<TotalNodes; i++) GlobalLambda[i] = 1.0;
-    } else {
-        // Для обычного режима - твоя функция с распределением (1.0 и 10.0)
-        fill_lambda(GlobalLambda, cfg);
-    }
+    // if (cfg.TestId > 0 && cfg.TestId < 4) {
+    //     // Для тестов Гамма всегда 0.0 кроме теста 4
+    //     for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 0.0;
+    // } else if (cfg.TestId == 4) {
+    //     //тест 4
+    //     for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 1.0;
+    // }
+    for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 0.0;
 
     assembly(A, Elements_all, cfg, GlobalLambda, GlobalGamma);
 
@@ -141,6 +157,7 @@ int main() {
         cout << endl;
     }
 
+    if (cfg.TestId == 4) cout << endl << scientific << setprecision(15) << abs(x[NodesY * (NodesX / 2) + NodesY / 2]) - 1.0 << endl;
     system("pause");
     return 0;
 }

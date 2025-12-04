@@ -3,17 +3,16 @@
 const double GAUSS_POINTS[3] = { -sqrt(3.0/5.0), 0.0, sqrt(3.0/5.0) };
 const double GAUSS_WEIGHTS[3] = { 5.0/9.0, 8.0/9.0, 5.0/9.0 };
 
-// Вспомогательные 1D (можно сделать static, чтобы не торчали наружу)
-static double q1d_m1(double t) { return 0.5 * t * (t - 1.0); }
-static double q1d_0 (double t) { return 1.0 - t * t; }
-static double q1d_p1(double t) { return 0.5 * t * (t + 1.0); }
+double q1d_m1(double t) { return 0.5 * t * (t - 1.0); }
+double q1d_0 (double t) { return 1.0 - t * t; }
+double q1d_p1(double t) { return 0.5 * t * (t + 1.0); }
 
-static double q1d_m1_d(double t) { return t - 0.5; }
-static double q1d_0_d (double t) { return -2.0 * t; }
-static double q1d_p1_d(double t) { return t + 0.5; }
+double q1d_m1_d(double t) { return t - 0.5; }
+double q1d_0_d (double t) { return -2.0 * t; }
+double q1d_p1_d(double t) { return t + 0.5; }
 
-static double lin1d_m1(double t) { return 0.5 * (1.0 - t); }
-static double lin1d_p1(double t) { return 0.5 * (1.0 + t); }
+double lin1d_m1(double t) { return 0.5 * (1.0 - t); }
+double lin1d_p1(double t) { return 0.5 * (1.0 + t); }
 
 double calc_basis_9node(int k, double ksi, double eta) {
     switch (k) {
