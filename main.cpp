@@ -1,166 +1,87 @@
-#include <iomanip>
-
-#include "Global.h"
-#include "IO.h"
-#include "FEM.h"
+#include <iomanip>  // библиотека для вывода таблицы решения (setw, precision)
+#include "Global.h" // наши структуры данных (Element, CSRMatrix, Config...)
+#include "IO.h"     // функции ввода-вывода (чтение файлов)
+#include "FEM.h"    // математическое ядро (сборка, базисные функции, физика)
 
 int main() {
 
+    program_configuration cfg;              // создаем структуру для хранения настроек
+    load_program_config(cfg, "kuslau.txt"); // загружаем из файла настройки
 
+    int Nx = cfg.Nx;                  // количество элементов по оси x (читаем из файла)
+    int Ny = cfg.Ny;                  // количество элементов по оси y (читаем из файла)
+    int NodesX = 2 * Nx + 1;          // количество узлов по оси x; формула: 2 * кол-во элементов по оси x + 1 (для 9-ти узловых элемнтов)
+    int NodesY = 2 * Ny + 1;          // количество узлов по оси y; формула: 2 * кол-во элементов по оси y + 1 (для 9-ти узловых элемнтов)
+    int TotalNodes = NodesX * NodesY; // общее количество узлов в сетке; формула: количество узлов по оси x * количество узлов по оси y
+    int TotalElements = Nx * Ny;      // общее количество элементов в сетке; формула: количество элементов по оси x * количество элементов по оси y
 
-
-    program_configuration cfg;
-    boundary_conditions_parameters params;
-
-    load_program_config(cfg, "kuslau.txt");
-
-    if (cfg.TestId == 1) {
-        cout << ">>> MODE: TEST 1 (u = x^2) <<<" << endl;
-
-        // Слева (1) и Справа (3) - Дирихле (значения x^2)
-        // Сверху (2) и Снизу (4) - Нейман 0 (изоляция)
-        params.left = 1;   params.left_value = 0.0;  // x=0 -> u=0
-        params.right = 1;  params.right_value = cfg.Lx * cfg.Lx; // x=Lx -> u=Lx^2
-        params.up = 2;     params.top_value = 0.0;
-        params.down = 2;   params.bottom_value = 0.0;
-    }
-    else if (cfg.TestId == 2) {
-        cout << ">>> MODE: TEST 2 (u = y^2) <<<" << endl;
-        // Настраиваем границы:
-        // Слева (1) и Справа (3) - Нейман 0
-        // Сверху (2) и Снизу (4) - Дирихле (значения y^2)
-        params.left = 2;   params.left_value = 0.0;
-        params.right = 2;  params.right_value = 0.0;
-        params.up = 1;     params.top_value = cfg.Ly * cfg.Ly; // y=Ly -> u=Ly^2
-        params.down = 1;   params.bottom_value = 0.0; // y=0 -> u=0
-    }
-    else if (cfg.TestId == 3) {
-        cout << ">>> MODE: TEST 3 (u = x^2 + y^2) <<<" << endl;
-        // Все границы - Дирихле (Тип 1).
-        // Значения (0.0) тут не важны, так как внутри apply_dirichlet
-        // сработает наша новая логика и посчитает формулу.
-        params.left = 1;   params.left_value = 0.0;
-        params.right = 1;  params.right_value = 0.0;
-        params.up = 1;     params.top_value = 0.0;
-        params.down = 1;   params.bottom_value = 0.0;
-    }
-    else if (cfg.TestId == 4) {
-        cout << ">>> MODE: TEST 4 (Convergence Study) <<<" << endl;
-        // Все границы - Дирихле u=0
-        params.left = 1;   params.left_value = 0.0;
-        params.right = 1;  params.right_value = 0.0;
-        params.up = 1;     params.top_value = 0.0;
-        params.down = 1;   params.bottom_value = 0.0;
-    }
-    else load_boundary_conditions(params, "boundary_conditions.txt");
-
-    int Nx = cfg.Nx;
-    int Ny = cfg.Ny;
-    int NodesX = 2 * Nx + 1;
-    int NodesY = 2 * Ny + 1;
-    int TotalNodes = NodesX * NodesY;
-    int TotalElements = Nx * Ny;
-
+    // выводим информацию, чтобы убедиться, что конфиг считался верно
     cout << "FEM Analysis Start" << endl;
+    cout << "Mode: " << (cfg.TestId > 0 ? "TEST" : "MAIN TASK") << " #" << cfg.TestId << endl;
     cout << "Grid: " << Nx << "x" << Ny << " Elements (" << TotalNodes << " Nodes)" << endl;
 
-    // ------------------------------------------
-    // 2. ГЕОМЕТРИЯ (Сетка)
-    // ------------------------------------------
-    Element* Elements_all = new Element[TotalElements];
-    element_fill(Elements_all, cfg);
+    Element* Elements_all = new Element[TotalElements]; // выделяем память под массив элементов
+    element_fill(Elements_all, cfg);                    // заполняем этот массив (функция связывает глобальные номера узлов с каждым конкретным элементом)
 
-    // ------------------------------------------
-    // 3. ПОРТРЕТ МАТРИЦЫ (Скелет)
-    // ------------------------------------------
-    CSRMatrix A;
-    build_matrix_portrait(A, Elements_all, cfg);
+    CSRMatrix A;                                 // создаем структуру для хранения разреженной матрицы
+    build_matrix_portrait(A, Elements_all, cfg); // запоняем массивы ig и jg (какой узел с каким соседит) + выделяем память для di и gg
 
-    // ------------------------------------------
-    // 4. ПАМЯТЬ ПОД ВЕКТОРА (Твоя функция)
-    // ------------------------------------------
-    WorkVectors extra;
-    double* x = nullptr;
-    double* f = nullptr; // Это будет наша правая часть (вектор b)
+    WorkVectors extra;                // создаем структуру (3 указателя r, z, p) для вспомогательных векторов (для решателя)
+    double* x = nullptr;              // создаем указатель на вектор решения (температура)
+    double* f = nullptr;              // создаем указатель на вектор правой части (источники тепла)
+    allocWorkspace(cfg, extra, x, f); // выделяем память под все вышеперечисленное (r, z, p, x, f)
 
-    allocWorkspace(cfg, extra, x, f);
+    double* GlobalLambda = new double[TotalNodes]; // создаем указатель на массив коэффициентов диффузии (теплопроводности) для каждого узла и сразу выделяем память
+    fill_lambda(GlobalLambda, cfg);                // заполняем лямбду (массив коэффициентов диффузии) с помощью функции
 
-    // ------------------------------------------
-    // 5. СБОРКА СИСТЕМЫ (Физика)
-    // ------------------------------------------
+    double* GlobalGamma = new double[TotalNodes];  // создаем указатель на массив коэффициентов реакции (теплоотдачи/поглощения) для каждого узла и сразу выделяем память
+    fill_gamma(GlobalGamma, cfg);                  // заполняем гамму (массив коэффициентов реакции) с помощью функции
 
-
-    double* GlobalLambda = new double[TotalNodes];
-
-    // if (cfg.TestId > 0) {
-    //     // Для тестов Лямбда всегда 1.0
-    //     for(int i=0; i<TotalNodes; i++) GlobalLambda[i] = 1.0;
-    // } else {
-    //     // Для обычного режима - твоя функция с распределением (1.0 и 10.0)
-    //     fill_lambda(GlobalLambda, cfg);
-    // }
-    for(int i=0; i<TotalNodes; i++) GlobalLambda[i] = 1.0;
-
-    double* GlobalGamma = new double[TotalNodes];
-
-    // if (cfg.TestId > 0 && cfg.TestId < 4) {
-    //     // Для тестов Гамма всегда 0.0 кроме теста 4
-    //     for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 0.0;
-    // } else if (cfg.TestId == 4) {
-    //     //тест 4
-    //     for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 1.0;
-    // }
-    for(int i=0; i<TotalNodes; i++) GlobalGamma[i] = 0.0;
-
+    // 1) цикл по всем элементам
+    // 2) подсчет локальных матриц (интегрируем градиенты * лямбду + функции * гамму)
+    // 3) суммируем вклады в глобальную матрицу A
     assembly(A, Elements_all, cfg, GlobalLambda, GlobalGamma);
 
-    // Сборка Вектора f (правая часть)
-    // Важно: сначала обнулить f, так как assembly_b делает +=
-    for(int i=0; i<TotalNodes; i++) f[i] = 0.0;
-    assembly_b(f, Elements_all, cfg);
+    // собираем вектор правой части
+    for(int i=0; i<TotalNodes; i++) f[i] = 0.0; // зануляем вектор так как assembly_b делает += (накопление)
+    assembly_b(f, Elements_all, cfg);           // интегрируем функцию источника (правую часть уравнения) и добавляем в вектор f
 
-    // ------------------------------------------
-    // 6. КРАЕВЫЕ УСЛОВИЯ (Закрепляем края)
-    // ------------------------------------------
+    boundary_conditions_parameters params;      // создаем структуру для краевых условий
+    configure_boundaries(params, cfg);          // в зависимости от номера теста заполняем структуру
+    apply_boundary_conditions(A, f, Elements_all, cfg, params); // применяем условия
 
-    apply_boundary_conditions(A, f, Elements_all, cfg, params);
+    CSRMatrix S;              // создаем структуру для хранения разреженной матрицы
+    buildICFactor(cfg, A, S); // делаем неполное разложение
 
-    // ------------------------------------------
-    // 7. РЕШЕНИЕ (Солвер)
-    // ------------------------------------------
+    for(int i=0; i<TotalNodes; i++) x[i] = 0.0; // начальное приближение для солвера
 
-    // Матрица S для предобуславливателя
-    CSRMatrix S;
-    // Строим неполное разложение Холецкого
-    buildICFactor(cfg, A, S);
+    cout << "Solving system..." << endl;                   // выводим информацию о том что долшли до решения
+    int iters = solve_MSG_IC(cfg, A, S, f, x, extra);      // решаем
+    cout << "Done in " << iters << " iterations." << endl; // выводим количество иттераций за которое решение сошлось
 
-    // Начальное приближение x0 = 0
-    for(int i=0; i<TotalNodes; i++) x[i] = 0.0;
+    cout << endl << "Temperature Field:" << endl; // вспомогательный вывод
+    cout.precision(2);                            // ставим 2 знака после запятой для красоты
+    cout << fixed;                                // фиксированный формат
 
-    cout << "Solving system..." << endl;
-    int iters = solve_MSG_IC(cfg, A, S, f, x, extra);
+    // выводим массив решения x как двумерную сетку.
+    for (int j = NodesY - 1; j >= 0; j--) {  // строки (Y)
+        for (int i = 0; i < NodesX; i++) {   // столбцы (X)
+            int node_idx = j * NodesX + i;   // формула пересчета координат в индекс
+            double val = x[node_idx];        // вывод
+            if (abs(val) < 1e-10) val = 0.0; // убираем "минус ноль" (-0.00 иногда вылезает из-за погрешности float)
 
-    cout << "Done in " << iters << " iterations." << endl;
-
-    // ------------------------------------------
-    // 8. ВЫВОД РЕЗУЛЬТАТА
-    // ------------------------------------------
-    cout << "\nTemperature Field:" << endl;
-    cout.precision(2); // 2 знака после запятой
-    cout << fixed;
-
-    // Выводим сеткой, чтобы было наглядно (снизу вверх)
-    for (int j = NodesY - 1; j >= 0; j--) { // Строки (Y)
-        for (int i = 0; i < NodesX; i++) {  // Столбцы (X)
-            int node_idx = j * NodesX + i;
-            // Вывод числа с выравниванием
-            if (abs(x[node_idx]) < 1e-10) cout << "0.00\t";
-            else cout << x[node_idx] << "\t";
+            cout << setw(8) << val;          // выравниваем колонки по ширине 8 символов
         }
-        cout << endl;
+        cout << endl;                        // переход на новую строку сетки
     }
 
-    if (cfg.TestId == 4) cout << endl << scientific << setprecision(15) << abs(x[NodesY * (NodesX / 2) + NodesY / 2]) - 1.0 << endl;
-    system("pause");
+    //специальный вывод для теста 4 (сравниваем значение в самом центре области с точным аналитическим решением которое равно 1.0)
+    if (cfg.TestId == 4) {
+        int center_node = NodesY * (NodesX / 2) + NodesY / 2;                 // индекс центрального узла
+        cout << endl << "Error in center: " << scientific << setprecision(15) // выводим |полученное - точное|
+             << abs(x[center_node]) - 1.0 << endl;
+    }
+
+    system("pause"); // чтобы консоль не закрылась сразу
     return 0;
 }

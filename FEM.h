@@ -7,6 +7,7 @@
 void element_fill(Element *Elements_all, program_configuration& cfg);
 Element& get_element_nodes(Element *&Elements_all, program_configuration& cfg, int ex, int ey);
 void fill_lambda(double* GlobalLambda, program_configuration& cfg);
+void fill_gamma(double* GlobalGamma, program_configuration& cfg);
 
 // Сборка
 void build_matrix_portrait(CSRMatrix &A, Element *Elements_all, program_configuration& cfg);

@@ -1,52 +1,54 @@
-#pragma once
-#include <iostream>
-#include <vector>
-#include <string>
-#include <cmath>
-#include <cstdlib> // для exit, system
+#pragma once        // директива препроцессора: гарантирует, что этот файл будет подключен только один раз (защита от ошибки переопределения структур при множественных include)
+#include <iostream> // библиотека ввода-вывода (вывод в консоль cout)
+#include <vector>   // контейнер vector (только для логики портрета)
+#include <string>   // работа со строками (передача имен файлов как аргументы функций)
+#include <cmath>    // математические функции (sqrt, sin и т.д.)
+#include <cstdlib>  // стандартная библиотека (для функций exit и system("pause"))
 
-using namespace std;
+using namespace std; // подключение пространства имен (чтобы не писать std::cout)
 
+// макросы для обработки критических ошибок (выводят текст ошибки и аварийно завершают программу)
 #define ERR_FUNC_CRASH(err_text) { cout << err_text << endl; system("pause"); exit(2); }
 #define ERR_FUNC_CRASH_FILE(err_text) { cout << err_text << '\"' << filename << '\"' << endl; system("pause"); exit(1); }
 
-struct Element { int nodes[9]; };
+// описание одного конечного элемента (в проделанном варианте №43 элементы БИКВАДРАТИЧНЫЕ, поэтому храним 9 узлов)
+struct Element { int nodes[9]; }; // глобальные номера узлов: 4 угловых, 4 на сторонах, 1 в центре
 
+// структура для хранения разреженной матрицы в формате CSR (Compressed Sparse Row)
 struct CSRMatrix {
-    double* di;
-    double* gg;
-    int*    ig;
-    int*    jg;
-
-    // Вспомогательный метод для очистки, если нужно будет
-    void clean() {
-        delete[] di; delete[] gg; delete[] ig; delete[] jg;
-    }
+    double* di; // массив диагональных элементов (значения)
+    double* gg; // массив внедиагональных элементов (значения)
+    int*    ig; // массив портрета (индексы начала строк)
+    int*    jg; // массив портрета (номера столбцов для элементов из gg)
 };
 
+// общие настройки программы
 struct program_configuration {
-    int Nx, Ny;
-    double Lx, Ly;
-    int maxiter;
-    double eps;
-    double TestId;
+    int    Nx, Ny;  // количество (конечных) элементов по осям X и Y
+    double Lx, Ly;  // реальный размер области
+    int    maxiter; // максимальное число итераций для МСГ (критерий останова)
+    double eps;     // относительная невязка (точность решения)
+    double TestId;  // номер запускаемого теста (0 - нет теста, 1-4 выполняем тест)
 };
 
+// параметры краевых условий
 struct boundary_conditions_parameters {
-    int left, up, right, down;
-    double left_value, top_value, right_value, bottom_value;
-    double robin_left_value, robin_top_value, robin_right_value, robin_bottom_value;
+    int left, up, right, down;                                                       // тип условия
+    double left_value, top_value, right_value, bottom_value;                         // значение
+    double robin_left_value, robin_top_value, robin_right_value, robin_bottom_value; // коэффициент теплообмена для условий 3-го рода
 };
 
+// рабочие векторы для решателя СЛАУ методом МСГ (Метод Сопряженных Градиентов)
 struct WorkVectors {
-    double* r;
-    double* z;
-    double* p;
+    double* r; // вектор невязки
+    double* z; // вектор предобсуловленной невязки
+    double* p; // вектор направления спуска
 };
 
+// перечисление сторон прямоугольника (используется в конструкциях switch/if для читаемости)
 enum BoundarySide {
-    SIDE_LEFT,
-    SIDE_RIGHT,
-    SIDE_BOTTOM,
-    SIDE_TOP
+    SIDE_LEFT,   // 1 - левая сторона
+    SIDE_RIGHT,  // 2 - правая сторона
+    SIDE_BOTTOM, // 3 - нижняя сторона
+    SIDE_TOP     // 4 - верхняя сторона
 };

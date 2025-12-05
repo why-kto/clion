@@ -18,24 +18,44 @@ double get_f(double x, double y, int test_id) {
 }
 
 void fill_lambda(double* GlobalLambda, program_configuration& cfg) {
-    int Nx = cfg.Nx;
-    int Ny = cfg.Ny;
-    int NodesX = 2 * Nx + 1;
-    int NodesY = 2 * Ny + 1;
+    int NodesX = 2 * cfg.Nx + 1;
+    int NodesY = 2 * cfg.Ny + 1;
     int TotalNodes = NodesX * NodesY;
-    int TotalElements = Nx * Ny;
 
+    // Если это тесты 1-4, то лямбда везде 1.0
+    if (cfg.TestId > 0 && cfg.TestId <= 4) {
+        for(int i = 0; i < TotalNodes; i++) GlobalLambda[i] = 1.0;
+        return;
+    }
+
+    // Иначе (основная задача или тест на разрыв) - распределение
     for (int j = 0; j < NodesY; j++) {
         for (int i = 0; i < NodesX; i++) {
             int idx = j * NodesX + i;
-
-            if (i < NodesX / 2) {
-                GlobalLambda[idx] = 1.0;
-            } else {
-                GlobalLambda[idx] = 10.0;
-            }
+            // Пример: слева 1.0, справа 10.0
+            if (i < NodesX / 2) GlobalLambda[idx] = 1.0;
+            else                GlobalLambda[idx] = 10.0;
         }
     }
+}
+
+void fill_gamma(double* GlobalGamma, program_configuration& cfg) {
+    int NodesX = 2 * cfg.Nx + 1;
+    int NodesY = 2 * cfg.Ny + 1;
+    int TotalNodes = NodesX * NodesY;
+
+    double value = 0.0;
+
+    // Логика выбора Гаммы
+    if (cfg.TestId == 4) {
+        value = 1.0; // Для теста сходимости (sin*sin)
+    }
+    else if (cfg.TestId == 6) { // Допустим, тест 6 - это сильная реакция
+        value = 25.0;
+    }
+    // Для тестов 1, 2, 3 и основной задачи (0) гамма = 0.0
+
+    for(int i = 0; i < TotalNodes; i++) GlobalGamma[i] = value;
 }
 
 double get_exact_u(double x, double y, int test_id) {
